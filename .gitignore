@@ -1,3 +1,5 @@
 
 *.bin
 pose/Hrnet/lib/detector/yolo/yolov3.weights
+*.cfg
+*.weights
