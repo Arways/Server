@@ -5,7 +5,8 @@ var bodyParser = require('body-parser');
 var session = require('express-session');
 var cookieParser =require('cookie-parser');
 
-var joinRouter = require('./routes/join');
+var joinRouter = require('./routes/user');
+var broRouter = require('./routes/bro');
 
 app.use(bodyParser.urlencoded({extended: false}));
 app.use(logger('dev'));
@@ -17,6 +18,7 @@ app.use(session({
 	saveUninitialized: true
 }));
 
-app.use('/join',joinRouter);
+app.use('/user',joinRouter);
+app.use('/bro',broRouter);
 
 app.listen(3000);
