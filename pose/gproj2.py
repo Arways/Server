@@ -38,7 +38,9 @@ def detect3d(predictor, input_kps, W, H):
     input_kps = normalize_screen_coordinates(input_kps[..., :2], w=W, h=H)
     keypoints = input_kps.copy()
     
-    gen = UnchunkedGenerator(None, None, [keypoints], pad=common.pad, causal_shift=common.causal_shift, augment=True, kps_left=common.kps_left, kps_right=common.kps_right, joints_left=common.joints_left, joints_right=common.joints_right)
+    gen = UnchunkedGenerator(None, None, [keypoints], pad=common.pad, causal_shift=common.causal_shift, augment=True, 
+                             kps_left=common.kps_left, kps_right=common.kps_right, joints_left=common.joints_left, 
+                             joints_right=common.joints_right)
     prediction = evaluate(gen, predictor, return_predictions=True)
     prediction = camera_to_world(prediction, R=common.rot, t=0)
     prediction[:,:,2] -= np.min(prediction[:,:,2])
