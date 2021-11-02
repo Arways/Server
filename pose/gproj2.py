@@ -81,6 +81,7 @@ if __name__=='__main__':
     while(1):
         start_t = timeit.default_timer()
         ret, frame = capture.read()
+        frame = cv2.resize(frame, dsize=(100,100), interpolation=cv2.INTER_AREA)
         if not(ret):
             print("Load failed")
             break
@@ -111,5 +112,5 @@ if __name__=='__main__':
         print('(video to 2d) = ',time_from_video_to_2d,"s")
         print('( 2d to 3d  ) = ',time_from_2d_to_3d,"s")
         print('fps = ',FPS)
-        util.draw_3Dimg(keypoint_3d, frame, display=1, kpt2D=last_keypoint_2d)
+        #util.draw_3Dimg(keypoint_3d, frame, display=1, kpt2D=last_keypoint_2d)
         cur_frame+=1
