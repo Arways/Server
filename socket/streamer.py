@@ -31,7 +31,7 @@ class ClientSocket:
 
     def sendImages(self):
         cnt = 0
-        capture = cv2.VideoCapture(0)
+        capture = cv2.VideoCapture("input/short.mp4")
         capture.set(cv2.CAP_PROP_FRAME_WIDTH, 480)
         capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 315)
         try:
