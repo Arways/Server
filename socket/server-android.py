@@ -95,32 +95,41 @@ if __name__ == '__main__':
     connectionSocket, addr = s.accept()
     print(str(addr),"접속")
 
-
-    for i in range(frame_count):
+    while(true):
         
         #s.connect((TCP_IP, TCP_PORT))
         
 
-        array = []
-        _, frame = movie.read()
-        data, image = Estimate_3Ddata(frame,e,ast_l)
-        
+##        array = []
+##        _, frame = movie.read()
+##        data, image = Estimate_3Ddata(frame,e,ast_l)
+##        
+##
+##        x = data[0][0]
+##        y = data[0][1]
+##        z = data[0][2]
+##        
+##        for j in range(17): 
+##            array.extend([x[j], y[j], z[j]])
+##        array = " ".join(str(x) for x in array)
+##
+##        image = cv2.resize(image, (656,368))
+##        cv2.imshow('tf-pose-estimation result', image)
+##        if cv2.waitKey(1) == 27:
+##            break
 
-        x = data[0][0]
-        y = data[0][1]
-        z = data[0][2]
-        
-        for j in range(17): 
-            array.extend([x[j], y[j], z[j]])
-        array = " ".join(str(x) for x in array)
 
-        image = cv2.resize(image, (656,368))
-        cv2.imshow('tf-pose-estimation result', image)
-        if cv2.waitKey(1) == 27:
-            break
-
-        connectionSocket.sendall(bytes(array,encoding = 'utf-8'))
-        
+        with open("../data/skeleton.txt",'w+') as f:
+            lines = f.readlines()
+            if not lines: continue
+            line = lines[:1]
+            line = line.strip()
+            print(line)
+            connectionSocket.sendall(bytes(line,encoding = 'utf-8'))
+            
+            for line in enumerate(lines[1:])
+                f.write(line)
+    
         ##connectionSocket.close()
         
         #cv2.imwrite("data/%s.png"%i, frame)
