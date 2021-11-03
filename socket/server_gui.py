@@ -101,7 +101,7 @@ class EstimatePose:
         keypoint_3d = keypoints_3d[-1]
         
         #pose_img = util.draw_3Dimg(keypoint_3d, frame, display=0, kpt2D=self.last_keypoint_2d)
-        return keypoint_3d
+        return keypoint_3d, self.last_keypoint_2d
         
     
 class ServerSocket(QThread):
@@ -144,15 +144,9 @@ class ServerSocket(QThread):
                 #key = cv2.waitKey(1)
                 #if key == 27:
                 #    break
-                
-                width = decimg.shape[0]
-                height = decimg.shape[1]
-                qImg = QtGui.QImage(decimg.data, width, height, QtGui.QImage.Format_RGB888)
-                pixmap = QtGui.QPixmap.fromImage(qImg)
-                self.received_video_label.setPixmap(pixmap)
 
 
-                pose3d = self.estimatePose.estimate(decimg)
+                keypoint_3d, last_keypoint_2d = self.estimatePose.estimate(decimg)
                 '''
                 if poseImg:
                     width = poseImg.shape[0]
@@ -161,10 +155,15 @@ class ServerSocket(QThread):
                     pixmap = QtGui.QPixmap.fromImage(qImg)
                     self.pose_label.setPixmap(pixmap)
                 '''
-                self.pose_label.setText(pose3d)
-
-
-                print(pose3d)
+                img_3d = util.draw_3Dimg(keypoint_3d, decimg, display=False, kpt2D=last_keypoint_2d)
+                
+                width = img_3d.shape[0]
+                height = img_3d.shape[1]
+                qImg = QtGui.QImage(img_3d.data, height, width, QtGui.QImage.Format_RGB888)
+                pixmap = QtGui.QPixmap.fromImage(qImg)
+                self.received_video_label.setPixmap(pixmap)
+                
+                print(keypoint_3d)
 
         except Exception as e:
             print(e)
@@ -202,7 +201,7 @@ class Ui_MainWindow(object):
         self.centralwidget = QtWidgets.QWidget(MainWindow)
         self.centralwidget.setObjectName("centralwidget")
         self.received_video_label = QtWidgets.QLabel(self.centralwidget)
-        self.received_video_label.setGeometry(QtCore.QRect(70, 70, 281, 231))
+        self.received_video_label.setGeometry(QtCore.QRect(70, 70, 400, 400))
         self.received_video_label.setObjectName("received_video_label")
         self.pose_label = QtWidgets.QLabel(self.centralwidget)
         self.pose_label.setGeometry(QtCore.QRect(390, 80, 351, 261))

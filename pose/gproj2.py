@@ -112,5 +112,7 @@ if __name__=='__main__':
         print('(video to 2d) = ',time_from_video_to_2d,"s")
         print('( 2d to 3d  ) = ',time_from_2d_to_3d,"s")
         print('fps = ',FPS)
-        #util.draw_3Dimg(keypoint_3d, frame, display=1, kpt2D=last_keypoint_2d)
+        img_3d = util.draw_3Dimg(keypoint_3d, frame, display=False, kpt2D=last_keypoint_2d)
+        cv2.imshow('result',img_3d)
+        cv2.waitKey(3)
         cur_frame+=1

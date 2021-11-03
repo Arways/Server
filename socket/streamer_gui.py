@@ -45,8 +45,8 @@ class ClientSocket(QThread):
 
     def sendImages(self):
         cnt = 0
-        #capture = cv2.VideoCapture("input/short.mp4")
-        capture = cv2.VideoCapture(0)
+        capture = cv2.VideoCapture("input/short.mp4")
+        #capture = cv2.VideoCapture(0)
         capture.set(cv2.CAP_PROP_FRAME_WIDTH, 256)
         capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 192)
         try:
@@ -87,7 +87,7 @@ class ClientSocket(QThread):
 
 class Ui_MainWindow(object):
     def button_clicked(self):
-        TCP_IP = '10.0.0.4'
+        TCP_IP = 'localhost'
         TCP_PORT = 8080
         t = ClientSocket(TCP_IP, TCP_PORT, self.MainWindow, self.input_video_label)
         t.start()
