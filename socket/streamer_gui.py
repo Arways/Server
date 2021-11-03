@@ -45,16 +45,17 @@ class ClientSocket(QThread):
 
     def sendImages(self):
         cnt = 0
-        capture = cv2.VideoCapture("input/short.mp4")
-        capture.set(cv2.CAP_PROP_FRAME_WIDTH, 480)
-        capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 315)
+        #capture = cv2.VideoCapture("input/short.mp4")
+        capture = cv2.VideoCapture(0)
+        capture.set(cv2.CAP_PROP_FRAME_WIDTH, 256)
+        capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 192)
         try:
             while capture.isOpened():
                 ret, frame = capture.read()
-                resize_frame = cv2.resize(frame, dsize=(480, 315), interpolation=cv2.INTER_AREA)
+                resize_frame = cv2.resize(frame, dsize=(256, 192), interpolation=cv2.INTER_AREA)
                 
                 img = cv2.cvtColor(resize_frame, cv2.COLOR_BGR2RGB)
-                qImg = QtGui.QImage(img.data, 480, 315, QtGui.QImage.Format_RGB888)
+                qImg = QtGui.QImage(img.data, 256, 192, QtGui.QImage.Format_RGB888)
                 pixmap = QtGui.QPixmap.fromImage(qImg)
                 self.input_video_label.setPixmap(pixmap)
                 
@@ -86,7 +87,7 @@ class ClientSocket(QThread):
 
 class Ui_MainWindow(object):
     def button_clicked(self):
-        TCP_IP = 'localhost'
+        TCP_IP = '10.0.0.4'
         TCP_PORT = 8080
         t = ClientSocket(TCP_IP, TCP_PORT, self.MainWindow, self.input_video_label)
         t.start()

@@ -145,7 +145,13 @@ class ServerSocket(QThread):
                 #if key == 27:
                 #    break
                 
-                
+                width = decimg.shape[0]
+                height = decimg.shape[1]
+                qImg = QtGui.QImage(decimg.data, width, height, QtGui.QImage.Format_RGB888)
+                pixmap = QtGui.QPixmap.fromImage(qImg)
+                self.received_video_label.setPixmap(pixmap)
+
+
                 pose3d = self.estimatePose.estimate(decimg)
                 '''
                 if poseImg:
@@ -155,7 +161,9 @@ class ServerSocket(QThread):
                     pixmap = QtGui.QPixmap.fromImage(qImg)
                     self.pose_label.setPixmap(pixmap)
                 '''
-                #self.pose_label.setText(pose3d)
+                self.pose_label.setText(pose3d)
+
+
                 print(pose3d)
 
         except Exception as e:
