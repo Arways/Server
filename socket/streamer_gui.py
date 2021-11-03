@@ -86,7 +86,7 @@ class ClientSocket(QThread):
 
 class Ui_MainWindow(object):
     def button_clicked(self):
-        TCP_IP = 'localhost'
+        TCP_IP = '10.0.0.4'
         TCP_PORT = 8080
         t = ClientSocket(TCP_IP, TCP_PORT, self.MainWindow, self.input_video_label)
         t.start()

@@ -11,21 +11,21 @@ import cv2
 import logging
 import time
 import ast
-import common
+# import common
 import numpy as np
-from estimator import TfPoseEstimator
-from networks import get_graph_path, model_wh
+# from estimator import TfPoseEstimator
+# from networks import get_graph_path, model_wh
 
-from  lifting.prob_model  import  Prob3dPose
+# from  lifting.prob_model  import  Prob3dPose
 
 import socket
 import time
-import tensorflow as tf
-tf_config = tf.ConfigProto()
-tf_config.gpu_options.allow_growth = True
+# import tensorflow as tf
+# tf_config = tf.ConfigProto()
+# tf_config.gpu_options.allow_growth = True
 
-session = tf.Session(config=tf_config) # session 만들 때 config 넣기!!
-TCP_IP = '192.168.55.90'
+# session = tf.Session(config=tf_config) # session 만들 때 config 넣기!!
+TCP_IP = '10.0.0.4'
 TCP_PORT = 5005
 
 
@@ -42,38 +42,38 @@ logger.addHandler(ch)
 
 out_dir  =  './movie/data_Doit/'
 
-def Estimate_3Ddata(image,e,scales):
-    # t0 = time.time()
-    # # estimate human poses from a single image !
-    # t = time.time()
-    humans = e.inference(image, scales=scales)
-    #elapsed = time.time() - t
-    image = TfPoseEstimator.draw_humans(image, humans)
-    #logger.info('inference image:%.4f seconds.' % (elapsed))
-    logger.info('3d lifting initialization.')
+# def Estimate_3Ddata(image,e,scales):
+#     # t0 = time.time()
+#     # # estimate human poses from a single image !
+#     # t = time.time()
+#     humans = e.inference(image, scales=scales)
+#     #elapsed = time.time() - t
+#     image = TfPoseEstimator.draw_humans(image, humans)
+#     #logger.info('inference image:%.4f seconds.' % (elapsed))
+#     logger.info('3d lifting initialization.')
 
-    poseLifting = Prob3dPose('lifting/models/prob_model_params.mat')
+#     poseLifting = Prob3dPose('lifting/models/prob_model_params.mat')
 
-    standard_w = 320
-    standard_h = 240
+#     standard_w = 320
+#     standard_h = 240
 
-    pose_2d_mpiis = []
-    visibilities = []
-    for human in humans:
-        pose_2d_mpii, visibility = common.MPIIPart.from_coco(human)
-        pose_2d_mpiis.append([(int(x * standard_w + 0.5), int(y * standard_h + 0.5)) for x, y in pose_2d_mpii])
-        visibilities.append(visibility)
+#     pose_2d_mpiis = []
+#     visibilities = []
+#     for human in humans:
+#         pose_2d_mpii, visibility = common.MPIIPart.from_coco(human)
+#         pose_2d_mpiis.append([(int(x * standard_w + 0.5), int(y * standard_h + 0.5)) for x, y in pose_2d_mpii])
+#         visibilities.append(visibility)
 
-    pose_2d_mpiis = np.array(pose_2d_mpiis)
-    visibilities = np.array(visibilities)
-    if(pose_2d_mpiis.ndim != 3):
-        return 0
-    transformed_pose2d, weights = poseLifting.transform_joints(pose_2d_mpiis, visibilities)
-    pose_3d = poseLifting.compute_3d(transformed_pose2d, weights)
+#     pose_2d_mpiis = np.array(pose_2d_mpiis)
+#     visibilities = np.array(visibilities)
+#     if(pose_2d_mpiis.ndim != 3):
+#         return 0
+#     transformed_pose2d, weights = poseLifting.transform_joints(pose_2d_mpiis, visibilities)
+#     pose_3d = poseLifting.compute_3d(transformed_pose2d, weights)
 
-    #alltime= time.time() - t0
-    #logger.info('estimate all time:%.4f seconds.' % (alltime))
-    return pose_3d, image
+#     #alltime= time.time() - t0
+#     #logger.info('estimate all time:%.4f seconds.' % (alltime))
+#     return pose_3d, image
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='tf-pose-estimation run')
@@ -84,7 +84,7 @@ if __name__ == '__main__':
     movie = cv2.VideoCapture(args.movie)
 
     #w, h = model_wh('432x368')
-    e = TfPoseEstimator(get_graph_path('mobilenet_thin'), target_size=(656,368))
+    # e = TfPoseEstimator(get_graph_path('mobilenet_thin'), target_size=(656,368))
     ast_l = ast.literal_eval('[None]')
     frame_count = int(movie.get(7))
     
@@ -95,8 +95,9 @@ if __name__ == '__main__':
     connectionSocket, addr = s.accept()
     print(str(addr),"접속")
 
-    while(true):
-        
+    while(True):
+        # time.sleep(1)
+        # cv2.waitKey(1000)
         #s.connect((TCP_IP, TCP_PORT))
         
 
@@ -119,16 +120,30 @@ if __name__ == '__main__':
 ##            break
 
 
+        print("1")
         with open("../data/skeleton.txt",'w+') as f:
+            print("2")
             lines = f.readlines()
-            if not lines: continue
-            line = lines[:1]
-            line = line.strip()
-            print(line)
-            connectionSocket.sendall(bytes(line,encoding = 'utf-8'))
-            
-            for line in enumerate(lines[1:])
-                f.write(line)
+            if len(lines) == 0:
+                print("3")
+                continue
+            else:
+                print("hi")
+                line = lines[-1]
+                print("5")
+                line = line.rstrip().strip()
+                print("6")
+                print(line)
+                print("7")
+                connectionSocket.sendall(bytes(line,encoding = 'utf-8'))
+                # full_str=''
+                # print(line)
+                # lines = lines[1:]
+                # for line in lines:
+                #     print(line)
+                #     full_str += line
+                f.write('')
+                # print(full_str)
     
         ##connectionSocket.close()
         

@@ -94,7 +94,7 @@ class EstimatePose:
         if self.keypoints_2d.__len__() < self.frame_len+1:
             self.frame_height = frame.shape[0]
             self.frame_width = frame.shape[1]
-            return None, None
+            return None
         
         self.keypoints_2d.pop(0)
         keypoints_3d = self.detect3d(self.model_pos, np.array(self.keypoints_2d),self.frame_width,self.frame_height)
@@ -156,7 +156,19 @@ class ServerSocket(QThread):
                     self.pose_label.setPixmap(pixmap)
                 '''
                 #self.pose_label.setText(pose3d)
-                print(pose3d)
+                #print(pose3d)
+                if pose3d is not None:
+                    with open("../data/skeleton.txt",'a+') as f:
+                        for ps in pose3d:
+                            f.write(str(ps[0]))
+                            f.write(" ")
+                            f.write(str(ps[1]))
+                            f.write(" ")
+                            f.write(str(ps[2]))
+                            f.write(" ")
+                            # print(str(ps[0]))
+                        f.write("\n")
+                        # print("ok")
 
         except Exception as e:
             print(e)
@@ -179,9 +191,6 @@ class ServerSocket(QThread):
         self.socketOpen()
         self.receiveThread = threading.Thread(target=self.receiveImages)
         self.receiveThread.start()
-        self.socketOpen()
-        self.receiveThread2 = threading.Thread(target=self.receiveImages)
-        self.receiveThread2.start()
     
 
 class Ui_MainWindow(object):
@@ -216,7 +225,7 @@ class Ui_MainWindow(object):
         self.start_server_button.clicked.connect(self.button_clicked)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
         
-        TCP_IP = 'localhost'
+        TCP_IP = '10.0.0.4'
         TCP_PORT = 8080
         self.t = ServerSocket(TCP_IP, TCP_PORT, self.MainWindow, self.received_video_label, self.pose_label)
 
