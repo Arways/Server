@@ -155,15 +155,28 @@ class ServerSocket(QThread):
                     pixmap = QtGui.QPixmap.fromImage(qImg)
                     self.pose_label.setPixmap(pixmap)
                 '''
-                img_3d = util.draw_3Dimg(keypoint_3d, decimg, display=False, kpt2D=last_keypoint_2d)
                 
-                width = img_3d.shape[0]
-                height = img_3d.shape[1]
-                qImg = QtGui.QImage(img_3d.data, height, width, QtGui.QImage.Format_RGB888)
+                #print(keypoint_3d)
+                
+                '''
+                width = decimg.shape[0]
+                height = decimg.shape[1]
+                qImg = QtGui.QImage(decimg.data, height, width, QtGui.QImage.Format_RGB888)
                 pixmap = QtGui.QPixmap.fromImage(qImg)
                 self.received_video_label.setPixmap(pixmap)
+                '''
                 
-                print(keypoint_3d)
+                
+                if keypoint_3d is not None:
+                    img_3d = util.draw_3Dimg(keypoint_3d, decimg, display=False, kpt2D=last_keypoint_2d)
+
+                    width = img_3d.shape[0]
+                    height = img_3d.shape[1]
+                    qImg = QtGui.QImage(img_3d.data, height, width, QtGui.QImage.Format_RGB888)
+                    pixmap = QtGui.QPixmap.fromImage(qImg)
+                    self.received_video_label.setPixmap(pixmap)
+                
+
 
         except Exception as e:
             print(e)
@@ -186,9 +199,12 @@ class ServerSocket(QThread):
         self.socketOpen()
         self.receiveThread = threading.Thread(target=self.receiveImages)
         self.receiveThread.start()
+        
+        '''
         self.socketOpen()
         self.receiveThread2 = threading.Thread(target=self.receiveImages)
         self.receiveThread2.start()
+        '''
     
 
 class Ui_MainWindow(object):
@@ -197,11 +213,11 @@ class Ui_MainWindow(object):
     
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("Server_GUI")
-        MainWindow.resize(800, 600)
+        MainWindow.resize(1200, 600)
         self.centralwidget = QtWidgets.QWidget(MainWindow)
         self.centralwidget.setObjectName("centralwidget")
         self.received_video_label = QtWidgets.QLabel(self.centralwidget)
-        self.received_video_label.setGeometry(QtCore.QRect(70, 70, 400, 400))
+        self.received_video_label.setGeometry(QtCore.QRect(0, 0, 1500, 400))
         self.received_video_label.setObjectName("received_video_label")
         self.pose_label = QtWidgets.QLabel(self.centralwidget)
         self.pose_label.setGeometry(QtCore.QRect(390, 80, 351, 261))
@@ -230,8 +246,8 @@ class Ui_MainWindow(object):
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
         MainWindow.setWindowTitle(_translate("MainWindow", "MainWindow"))
-        self.received_video_label.setText(_translate("MainWindow", "TextLabel"))
-        self.pose_label.setText(_translate("MainWindow", "TextLabel"))
+        self.received_video_label.setText(_translate("MainWindow", ""))
+        self.pose_label.setText(_translate("MainWindow", ""))
         self.start_server_button.setText(_translate("MainWindow", "Start Server"))
 
 if __name__ == "__main__":
