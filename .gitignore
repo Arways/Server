@@ -1,5 +1,11 @@
 
-*.bin
+*.pyc
+
 pose/Hrnet/lib/detector/yolo/yolov3.weights
 *.cfg
 *.weights
+*.pyc
+pose/Videopose3D/common/__pycache__/utils.cpython-37.pyc
+*.pyc
+*.pyc
+*.pyc
