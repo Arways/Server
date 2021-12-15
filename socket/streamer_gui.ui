@@ -55,7 +55,7 @@
       <x>10</x>
       <y>10</y>
       <width>261</width>
-      <height>311</height>
+      <height>251</height>
      </rect>
     </property>
    </widget>
@@ -81,6 +81,9 @@
       <height>20</height>
      </rect>
     </property>
+    <property name="text">
+     <string>Name</string>
+    </property>
    </widget>
    <widget class="QPushButton" name="stop_stream_button">
     <property name="geometry">
@@ -103,6 +106,32 @@
       <width>171</width>
       <height>341</height>
      </rect>
+    </property>
+   </widget>
+   <widget class="QLineEdit" name="broad_ip_edit">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>270</y>
+      <width>261</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>IP Address</string>
+    </property>
+   </widget>
+   <widget class="QLineEdit" name="broad_port_edit">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>300</y>
+      <width>261</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Port</string>
     </property>
    </widget>
   </widget>

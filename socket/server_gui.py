@@ -1,219 +1,207 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'server_gui.ui'
+# Form implementation generated from reading ui file 'streamer_gui.ui'
 #
 # Created by: PyQt5 UI code generator 5.9.1
 #
 # WARNING! All changes made in this file will be lost!
-import os
-import sys
-
 
 from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.QtWidgets import *
-from PyQt5 import uic
 from PyQt5.QtCore import *
-
-from Hrnet.pose_estimation.video import getTwoModel, getKptsFromImage
-detect2d = getKptsFromImage
-
-from Videopose3D.common.model import RIEModel, TemporalModel
-from Videopose3D.common.generators import UnchunkedGenerator
-from Videopose3D.common.camera import camera_to_world, normalize_screen_coordinates
-import util 
-common = util.common
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
 
 import socket
 import cv2
-import numpy as np
-import base64
-import glob
+import numpy
 import time
-import threading
-import torch
+import base64
+import sys
 from datetime import datetime
-import timeit
 
-class EstimatePose:
-    def __init__(self):
-        self.cur_frame = 0
-        self.frame_width = 0
-        self.frame_height = 0
-        self.frame_len = 10
-        
-        print("preparing Hrnet...")
-        self.bboxModel, self.poseModel = getTwoModel()
-        
-        print("preparing VideoPose3D...")
-        chk_point_path = 'Videopose3D/checkpoint/pretrained_h36m_detectron_coco.bin'
-        self.model_pos = TemporalModel(17,2,17,filter_widths=[3,3,3,3,3],causal=False,dropout=False)
-        chk_point = torch.load(chk_point_path)
-        self.model_pos = self.model_pos.cuda()
-        self.model_pos.load_state_dict(chk_point['model_pos'])
-        
-        self.keypoints_2d = []
-        self.last_keypoint_2d = None
-        print("preparing Done")
-
-    def evaluate(self,test_generator, model_pos, action=None, return_predictions=False):
-        joints_left, joints_right = list([4, 5, 6, 11, 12, 13]), list([1, 2, 3, 14, 15, 16])
-        with torch.no_grad():
-            model_pos.eval()
-            N = 0
-            for _, batch, batch_2d in test_generator.next_epoch():
-                inputs_2d = torch.from_numpy(batch_2d.astype('float32'))
-                if torch.cuda.is_available():
-                    inputs_2d = inputs_2d.cuda()
-                # Positional model
-                predicted_3d_pos = model_pos(inputs_2d)
-                if test_generator.augment_enabled():
-                    # Undo flipping and take average with non-flipped version
-                    predicted_3d_pos[1, :, :, 0] *= -1
-                    predicted_3d_pos[1, :, joints_left + joints_right] = predicted_3d_pos[1, :, joints_right + joints_left]
-                    predicted_3d_pos = torch.mean(predicted_3d_pos, dim=0, keepdim=True)
-                if return_predictions:
-                    return predicted_3d_pos.squeeze(0).cpu().numpy()
-                
-    def detect3d(self,predictor, input_kps, W, H):
-        input_kps = normalize_screen_coordinates(input_kps[..., :2], w=W, h=H)
-        keypoints = input_kps.copy()
-        
-        gen = UnchunkedGenerator(None, None, [keypoints], pad=common.pad, causal_shift=common.causal_shift, augment=True, kps_left=common.kps_left, kps_right=common.kps_right, joints_left=common.joints_left, joints_right=common.joints_right)
-        prediction = self.evaluate(gen, predictor, return_predictions=True)
-        prediction = camera_to_world(prediction, R=common.rot, t=0)
-        prediction[:,:,2] -= np.min(prediction[:,:,2])
-        return prediction    
-    
-    def estimate(self,frame):
-        keypoint = detect2d(self.bboxModel, self.poseModel, frame)
-        if isinstance(keypoint, np.ndarray):
-            self.last_keypoint_2d = keypoint.copy()
-            
-        self.keypoints_2d.append(self.last_keypoint_2d)
-        
-        if self.keypoints_2d.__len__() < self.frame_len+1:
-            self.frame_height = frame.shape[0]
-            self.frame_width = frame.shape[1]
-            return None
-        
-        self.keypoints_2d.pop(0)
-        keypoints_3d = self.detect3d(self.model_pos, np.array(self.keypoints_2d),self.frame_width,self.frame_height)
-        keypoint_3d = keypoints_3d[-1]
-        
-        #pose_img = util.draw_3Dimg(keypoint_3d, frame, display=0, kpt2D=self.last_keypoint_2d)
-        return keypoint_3d
-        
-    
-class ServerSocket(QThread):
-    
-    def __init__(self, ip, port, parent, received_video_label, pose_label):
+class ClientSocket(QThread):
+    def __init__(self, ip, port, parent, input_video_label, log_edit):
         super().__init__(parent)
-        self.TCP_IP = ip
-        self.TCP_PORT = port
-        self.received_video_label = received_video_label
-        self.pose_label = pose_label
-        self.estimatePose = EstimatePose()
+        self.input_video_label = input_video_label
+        self.log_edit = log_edit
+        self.parent = parent
+        self.TCP_SERVER_IP = ip
+        self.TCP_SERVER_PORT = port
+        self.connectCount = 0
+        self.power=True
 
-    def socketClose(self):
-        self.sock.close()
-        print(u'Server socket [ TCP_IP: ' + self.TCP_IP + ', TCP_PORT: ' + str(self.TCP_PORT) + ' ] is close')
-
-    def socketOpen(self):
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.bind((self.TCP_IP, self.TCP_PORT))
-        self.sock.listen(4)
-        print(u'Server socket [ TCP_IP: ' + self.TCP_IP + ', TCP_PORT: ' + str(self.TCP_PORT) + ' ] is open')
-       # while 1:
-        self.conn, self.addr = self.sock.accept()
-        print(u'Server socket [ TCP_IP: ' + self.TCP_IP + ', TCP_PORT: ' + str(self.TCP_PORT) + ' ] is connected with client')
-
-    def receiveImages(self):
-
+    def connectServer(self):
         try:
-            while True:
-                length = self.recvall(self.conn, 64)
-                length1 = length.decode('utf-8')
-                stringData = self.recvall(self.conn, int(length1))
-                stime = self.recvall(self.conn, 64)
-                print('send time: ' + stime.decode('utf-8'))
+            self.sock = socket.socket()
+            self.sock.connect((self.TCP_SERVER_IP, self.TCP_SERVER_PORT))
+            print('Client socket is connected with Server socket [ TCP_SERVER_IP: ' + self.TCP_SERVER_IP + ', TCP_SERVER_PORT: ' + str(self.TCP_SERVER_PORT) + ' ]')
+            self.log_edit.append('Client socket is connected with Server socket [ TCP_SERVER_IP: ' + self.TCP_SERVER_IP + ', TCP_SERVER_PORT: ' + str(self.TCP_SERVER_PORT) + ' ]')
+            self.connectCount = 0
+            self.sendImages()
+        except Exception as e:
+            #self.log_edit.append(str(e))
+            self.connectCount += 1
+            if self.connectCount == 10:
+                print('Connect fail %d times'%(self.connectCount))
+                self.log_edit.append('Connect fail %d times'%(self.connectCount))
+                self.quit()
+            else:
+                print('%d times try to connect with server'%(self.connectCount))
+                self.log_edit.append('%d times try to connect with server'%(self.connectCount))
+                self.connectServer()
+
+
+    def sendImages(self):
+        cnt = 0
+        capture = cv2.VideoCapture("input/short.mp4")
+        #capture = cv2.VideoCapture(0)
+        capture.set(cv2.CAP_PROP_FRAME_WIDTH, 256)
+        capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 192)
+        try:
+            while capture.isOpened() and self.power:
+                ret, frame = capture.read()
+                resize_frame = cv2.resize(frame, dsize=(256, 192), interpolation=cv2.INTER_AREA)
+                
+                img = cv2.cvtColor(resize_frame, cv2.COLOR_BGR2RGB)
+                qImg = QtGui.QImage(img.data, 256, 192, QtGui.QImage.Format_RGB888)
+                pixmap = QtGui.QPixmap.fromImage(qImg)
+                self.input_video_label.setPixmap(pixmap)
+                
                 now = time.localtime()
-                print('receive time: ' + datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f'))
-                data = np.frombuffer(base64.b64decode(stringData), np.uint8)
-                decimg = cv2.imdecode(data, 1)
-                #cv2.imshow("server", decimg)
-                #key = cv2.waitKey(1)
-                #if key == 27:
-                #    break
-                
-                
-                pose3d = self.estimatePose.estimate(decimg)
-                '''
-                if poseImg:
-                    width = poseImg.shape[0]
-                    height = poseImg.shape[1]
-                    qImg = QtGui.QImage(decimg.data, width, height, QtGui.QImage.Format_RGB888)
-                    pixmap = QtGui.QPixmap.fromImage(qImg)
-                    self.pose_label.setPixmap(pixmap)
-                '''
-                #self.pose_label.setText(pose3d)
-                #print(pose3d)
-                if pose3d is not None:
-                    with open("../data/skeleton.txt",'a+') as f:
-                        for ps in pose3d:
-                            f.write(str(ps[0]))
-                            f.write(" ")
-                            f.write(str(ps[1]))
-                            f.write(" ")
-                            f.write(str(ps[2]))
-                            f.write(" ")
-                            # print(str(ps[0]))
-                        f.write("\n")
-                        # print("ok")
+                stime = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')
+
+                encode_param=[int(cv2.IMWRITE_JPEG_QUALITY),90]
+                result, imgencode = cv2.imencode('.jpg', resize_frame, encode_param)
+                data = numpy.array(imgencode)
+                stringData = base64.b64encode(data)
+                length = str(len(stringData))
+                self.sock.sendall(length.encode('utf-8').ljust(64))
+                self.sock.send(stringData)
+                self.sock.send(stime.encode('utf-8').ljust(64))
+                print(u'send images %d'%(cnt))
+                cnt+=1
+                time.sleep(0.0095)
 
         except Exception as e:
             print(e)
-            self.socketClose()
-            cv2.destroyAllWindows()
-            self.socketOpen()
-            self.receiveThread = threading.Thread(target=self.receiveImages)
-            self.receiveThread.start()
-
-    def recvall(self, sock, count):
-        buf = b''
-        while count:
-            newbuf = sock.recv(count)
-            if not newbuf: return None
-            buf += newbuf
-            count -= len(newbuf)
-        return buf
-    
+            self.sock.close()
+            time.sleep(1)
+            self.connectServer()
+            #self.sendImages()
+            
     def run(self):
-        self.socketOpen()
-        self.receiveThread = threading.Thread(target=self.receiveImages)
-        self.receiveThread.start()
-    
+        self.power=True
+        self.connectServer()
+        
+    def stop(self):
+        self.power=False
+        self.connectCount = 0
+        self.quit()
+        
+class ClientCam(QThread):
+    def __init__(self, parent, input_video_label):
+        super().__init__(parent)
+        self.input_video_label = input_video_label
+        self.power=True
+
+    def showImage(self):
+        capture = cv2.VideoCapture("input/short.mp4")
+        #capture = cv2.VideoCapture(0)
+        #capture.set(cv2.CAP_PROP_FRAME_WIDTH, 256)
+        #capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 192)
+        width = 256
+        height = 192
+        try:
+            while capture.isOpened() and self.power :
+                ret, frame = capture.read()
+                resize_frame = cv2.resize(frame, dsize=(width, height), interpolation=cv2.INTER_AREA)
+                
+                img = cv2.cvtColor(resize_frame, cv2.COLOR_BGR2RGB)
+                qImg = QtGui.QImage(img.data, width, height, QtGui.QImage.Format_RGB888)
+                pixmap = QtGui.QPixmap.fromImage(qImg)
+                self.input_video_label.setPixmap(pixmap)
+
+        except Exception as e:
+            self.showImage()
+            
+    def run(self):
+        self.power=True
+        self.showImage()
+        
+    def stop(self):
+        self.power=False
+        self.quit()
 
 class Ui_MainWindow(object):
-    def button_clicked(self):
-        self.t.start()
     
+    def start_streaming(self):
+        self.clientCam.stop()
+        self.start_stream_button.setEnabled(False)
+        self.stop_stream_button.setEnabled(True)
+        self.clientSocekt.start()
+        
+    def stop_streaming(self):
+        self.clientSocekt.stop()
+        self.start_stream_button.setEnabled(True)
+        self.stop_stream_button.setEnabled(False)
+        self.clientCam.start()
+        
+    def add_broad(self):
+        str = self.broad_name_edit.text()
+        self.rooms.append(str)
+        self.broad_name_edit.clear()
+        self.showList()
+        
+        TCP_IP = self.broad_ip_edit.text()
+        TCP_PORT = int(self.broad_port_edit.text())
+        self.clientSocekt = ClientSocket(TCP_IP, TCP_PORT, self.MainWindow, self.input_video_label, self.log_edit)
+        
+        self.broad_ip_edit.setEnabled(False)
+        self.broad_port_edit.setEnabled(False)
+        self.broad_add_button.setEnabled(False)
+        self.broad_list_view.setEnabled(False)
+        self.broad_name_edit.setEnabled(False)
+        self.start_stream_button.setEnabled(True)
+        self.clientCam.start()
+        
     def setupUi(self, MainWindow):
-        MainWindow.setObjectName("Server_GUI")
-        MainWindow.resize(800, 600)
+        MainWindow.setObjectName("MainWindow")
+        MainWindow.resize(859, 410)
         self.centralwidget = QtWidgets.QWidget(MainWindow)
         self.centralwidget.setObjectName("centralwidget")
-        self.received_video_label = QtWidgets.QLabel(self.centralwidget)
-        self.received_video_label.setGeometry(QtCore.QRect(70, 70, 281, 231))
-        self.received_video_label.setObjectName("received_video_label")
-        self.pose_label = QtWidgets.QLabel(self.centralwidget)
-        self.pose_label.setGeometry(QtCore.QRect(390, 80, 351, 261))
-        self.pose_label.setObjectName("pose_label")
-        self.start_server_button = QtWidgets.QPushButton(self.centralwidget)
-        self.start_server_button.setGeometry(QtCore.QRect(270, 430, 261, 61))
-        self.start_server_button.setObjectName("start_server_button")
+        self.input_video_label = QtWidgets.QLabel(self.centralwidget)
+        self.input_video_label.setGeometry(QtCore.QRect(280, 10, 381, 261))
+        self.input_video_label.setFrameShape(QtWidgets.QFrame.Box)
+        self.input_video_label.setFrameShadow(QtWidgets.QFrame.Plain)
+        self.input_video_label.setAlignment(QtCore.Qt.AlignCenter)
+        self.input_video_label.setObjectName("input_video_label")
+        self.start_stream_button = QtWidgets.QPushButton(self.centralwidget)
+        self.start_stream_button.setGeometry(QtCore.QRect(280, 280, 181, 71))
+        self.start_stream_button.setObjectName("start_stream_button")
+        self.broad_list_view = QtWidgets.QListView(self.centralwidget)
+        self.broad_list_view.setGeometry(QtCore.QRect(10, 10, 261, 251))
+        self.broad_list_view.setObjectName("broad_list_view")
+        self.broad_add_button = QtWidgets.QPushButton(self.centralwidget)
+        self.broad_add_button.setGeometry(QtCore.QRect(190, 330, 81, 23))
+        self.broad_add_button.setObjectName("broad_add_button")
+        self.broad_name_edit = QtWidgets.QLineEdit(self.centralwidget)
+        self.broad_name_edit.setGeometry(QtCore.QRect(10, 330, 171, 20))
+        self.broad_name_edit.setObjectName("broad_name_edit")
+        self.stop_stream_button = QtWidgets.QPushButton(self.centralwidget)
+        self.stop_stream_button.setGeometry(QtCore.QRect(470, 280, 191, 71))
+        self.stop_stream_button.setObjectName("stop_stream_button")
+        self.log_edit = QtWidgets.QTextEdit(self.centralwidget)
+        self.log_edit.setGeometry(QtCore.QRect(670, 10, 171, 341))
+        self.log_edit.setObjectName("log_edit")
+        self.broad_ip_edit = QtWidgets.QLineEdit(self.centralwidget)
+        self.broad_ip_edit.setGeometry(QtCore.QRect(10, 270, 261, 20))
+        self.broad_ip_edit.setObjectName("broad_ip_edit")
+        self.broad_port_edit = QtWidgets.QLineEdit(self.centralwidget)
+        self.broad_port_edit.setGeometry(QtCore.QRect(10, 300, 261, 20))
+        self.broad_port_edit.setObjectName("broad_port_edit")
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(MainWindow)
-        self.menubar.setGeometry(QtCore.QRect(0, 0, 800, 21))
+        self.menubar.setGeometry(QtCore.QRect(0, 0, 859, 21))
         self.menubar.setObjectName("menubar")
         MainWindow.setMenuBar(self.menubar)
         self.statusbar = QtWidgets.QStatusBar(MainWindow)
@@ -222,21 +210,41 @@ class Ui_MainWindow(object):
         self.MainWindow = MainWindow
 
         self.retranslateUi(MainWindow)
-        self.start_server_button.clicked.connect(self.button_clicked)
-        QtCore.QMetaObject.connectSlotsByName(MainWindow)
+        self.start_stream_button.clicked.connect(self.start_streaming)
+        self.broad_add_button.clicked.connect(self.add_broad)
+        self.stop_stream_button.clicked.connect(self.stop_streaming)
+        self.rooms = ['Room1', 'Room2', 'Room3', 'Room4']
+        self.showList()
+        self.broad_list_view.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.start_stream_button.setEnabled(False)
+        self.stop_stream_button.setEnabled(False)
+        self.log_edit.setEnabled(False)
         
-        TCP_IP = '192.168.0.33'
-        TCP_PORT = 8080
-        self.t = ServerSocket(TCP_IP, TCP_PORT, self.MainWindow, self.received_video_label, self.pose_label)
+        self.clientCam = ClientCam(self.MainWindow, self.input_video_label)
+        
+        QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
         MainWindow.setWindowTitle(_translate("MainWindow", "MainWindow"))
-        self.received_video_label.setText(_translate("MainWindow", "TextLabel"))
-        self.pose_label.setText(_translate("MainWindow", "TextLabel"))
-        self.start_server_button.setText(_translate("MainWindow", "Start Server"))
+        self.input_video_label.setText(_translate("MainWindow", "<html><head/><body><p>Waiting for Starting Streaming...</p></body></html>"))
+        self.start_stream_button.setText(_translate("MainWindow", "Start Streaming"))
+        self.broad_add_button.setText(_translate("MainWindow", "Add Room"))
+        self.broad_name_edit.setText(_translate("MainWindow", "Name"))
+        self.stop_stream_button.setText(_translate("MainWindow", "Stop Streaming"))
+        self.broad_ip_edit.setText(_translate("MainWindow", "localhost"))
+        self.broad_port_edit.setText(_translate("MainWindow", "8080"))
+        
+    def showList(self):
+        self.model = QStandardItemModel()
+        for room in self.rooms:
+            self.model.appendRow(QStandardItem(room))
+        self.broad_list_view.setModel(self.model)
+
+
 
 if __name__ == "__main__":
+    import sys
     app = QtWidgets.QApplication(sys.argv)
     MainWindow = QtWidgets.QMainWindow()
     ui = Ui_MainWindow()
